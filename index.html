@@ -1,1323 +1,161 @@
 <!DOCTYPE html>
-<html lang="fr" class="h-full bg-slate-900 text-slate-100">
+<html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Calendrier Partagé - Paul & Diane</title>
+  <meta name="theme-color" content="#4f46e5">
+  <meta name="description" content="Calendrier partagé pour Paul et Diane avec synchronisation en temps réel et rappels.">
+  <link rel="manifest" id="manifest-placeholder">
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
   
-  <!-- FontAwesome Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  
-  <!-- Inter Font -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-  <!-- PWA Theme Meta -->
-  <meta name="theme-color" content="#0f172a">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="Calendrier partagé en temps réel pour Paul et Diane">
-
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Inter', 'sans-serif'],
-          }
-        }
-      }
-    }
-  </script>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
   <style>
-    .touch-app {
-      user-select: none;
-      -webkit-user-select: none;
-      -webkit-tap-highlight-color: transparent;
-    }
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: rgba(15, 23, 42, 0.6);
-    }
-    ::-webkit-scrollbar-thumb {
-      background: rgba(100, 116, 139, 0.5);
-      border-radius: 9999px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: rgba(148, 163, 184, 0.8);
-    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .gradient-common { background: linear-gradient(135deg, var(--color-paul, #3b82f6), var(--color-diane, #ec4899)); }
   </style>
-
-  <!-- Firebase Modular SDKs -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-
-    window.FirebaseSDK = {
-      initializeApp,
-      getFirestore,
-      collection,
-      doc,
-      setDoc,
-      deleteDoc,
-      onSnapshot,
-      query,
-      orderBy,
-      getAuth,
-      signInAnonymously
-    };
-  </script>
 </head>
-<body class="h-full flex flex-col font-sans touch-app overflow-hidden antialiased bg-slate-900 text-slate-100">
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans antialiased pb-20 selection:bg-indigo-500 selection:text-white">
 
-  <!-- Main App Shell -->
-  <div id="app" class="flex flex-col h-full w-full max-w-md md:max-w-4xl mx-auto shadow-2xl bg-slate-900 relative">
-    
-    <!-- Top Header -->
-    <header class="bg-slate-800/80 backdrop-blur-md border-b border-slate-700/60 px-4 py-3 flex items-center justify-between z-20 sticky top-0">
-      <div class="flex items-center space-x-3">
-        <div class="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-white shadow-lg bg-gradient-to-tr from-blue-600 via-purple-600 to-pink-500">
-          <i class="fa-solid fa-calendar-heart text-lg"></i>
-        </div>
-        <div>
-          <h1 class="font-bold text-base leading-tight tracking-tight text-white flex items-center gap-1.5">
-            Paul <span class="text-xs text-pink-400">&amp;</span> Diane
-          </h1>
-          <p id="current-user-badge" class="text-xs text-slate-400 flex items-center gap-1">
-            <span class="w-2 h-2 rounded-full bg-slate-500 inline-block" id="status-dot"></span>
-            <span id="user-display-name">Chargement...</span>
-          </p>
-        </div>
-      </div>
-
-      <!-- Action Buttons Header -->
-      <div class="flex items-center space-x-1.5">
-        <button id="btn-sync-settings" title="Paramètres Firebase" class="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-700/60 transition">
-          <i class="fa-solid fa-cloud-bolt text-lg"></i>
-        </button>
-        <button id="btn-notifications" title="Activer les notifications" class="p-2 rounded-xl text-slate-400 hover:text-amber-400 hover:bg-slate-700/60 transition relative">
-          <i class="fa-solid fa-bell text-lg"></i>
-          <span id="notif-badge" class="hidden absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-        </button>
-        <button id="btn-profile" title="Profil / Couleurs" class="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-700/60 transition">
-          <i class="fa-solid fa-user-gear text-lg"></i>
-        </button>
-      </div>
-    </header>
-
-    <!-- Calendar View Navigation Bar -->
-    <section class="bg-slate-800/40 border-b border-slate-800 px-4 py-2.5 flex items-center justify-between text-sm flex-wrap gap-2">
-      <div class="flex items-center space-x-2">
-        <button id="btn-prev" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition">
-          <i class="fa-solid fa-chevron-left text-sm"></i>
-        </button>
-        <button id="btn-today" class="px-2.5 py-1 rounded-lg bg-slate-800 text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-700 transition">
-          Aujourd'hui
-        </button>
-        <button id="btn-next" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition">
-          <i class="fa-solid fa-chevron-right text-sm"></i>
-        </button>
-      </div>
-
-      <div id="calendar-title" class="font-bold text-sm text-slate-200 capitalize">
-        -- 2026
-      </div>
-
-      <!-- View Selector Dropdown/Tabs -->
-      <div class="flex bg-slate-950 p-0.5 rounded-xl border border-slate-800">
-        <button data-view="month" class="view-btn px-2.5 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition">Mois</button>
-        <button data-view="week" class="view-btn px-2.5 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition">Semaine</button>
-        <button data-view="agenda" class="view-btn px-2.5 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition">Agenda</button>
-      </div>
-    </section>
-
-    <!-- Filter Bar -->
-    <div class="bg-slate-950/80 px-4 py-2 flex items-center justify-between border-b border-slate-800 text-xs">
-      <span class="text-slate-400 font-medium text-[11px]">Filtrer :</span>
-      <div class="flex gap-1.5">
-        <button data-filter="all" class="filter-btn px-2 py-0.5 rounded-lg bg-indigo-600 text-white font-medium text-[11px] shadow transition">Tous</button>
-        <button data-filter="paul" class="filter-btn px-2 py-0.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white font-medium text-[11px] transition">Paul</button>
-        <button data-filter="diane" class="filter-btn px-2 py-0.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white font-medium text-[11px] transition">Diane</button>
-        <button data-filter="shared" class="filter-btn px-2 py-0.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white font-medium text-[11px] transition">Commun</button>
-      </div>
-    </div>
-
-    <!-- Legend Bar -->
-    <div class="bg-slate-950/40 px-4 py-1.5 flex items-center justify-around border-b border-slate-800/60 text-[11px] font-medium text-slate-400">
-      <div class="flex items-center space-x-1.5">
-        <span id="legend-paul-color" class="w-3 h-3 rounded-full bg-blue-500 inline-block shadow"></span>
-        <span id="legend-paul-name">Paul</span>
-      </div>
-      <div class="flex items-center space-x-1.5">
-        <span id="legend-diane-color" class="w-3 h-3 rounded-full bg-pink-500 inline-block shadow"></span>
-        <span id="legend-diane-name">Diane</span>
-      </div>
-      <div class="flex items-center space-x-1.5">
-        <span id="legend-shared-color" class="w-3 h-3 rounded-full bg-purple-500 inline-block shadow"></span>
-        <span>En Commun</span>
-      </div>
-    </div>
-
-    <!-- Main Content Area -->
-    <main id="view-container" class="flex-1 overflow-y-auto relative p-3">
-      <!-- Calendar Render Target -->
-      <div id="calendar-render" class="h-full flex flex-col"></div>
-    </main>
-
-    <!-- Floating Action Button (Add Event) -->
-    <button id="btn-add-event" class="fixed bottom-20 right-5 md:bottom-8 md:right-8 w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 text-white shadow-xl flex items-center justify-center text-xl hover:scale-105 active:scale-95 transition-all z-30">
-      <i class="fa-solid fa-plus"></i>
-    </button>
-
-    <!-- Bottom Navigation Bar (Mobile Native Look) -->
-    <nav class="bg-slate-800/95 backdrop-blur-lg border-t border-slate-700/60 py-2 px-6 flex items-center justify-around z-20">
-      <button data-tab="calendar" class="nav-tab flex flex-col items-center space-y-1 text-xs text-indigo-400 font-semibold">
-        <i class="fa-solid fa-calendar-days text-lg"></i>
-        <span>Calendrier</span>
-      </button>
-      <button data-tab="upcoming" class="nav-tab flex flex-col items-center space-y-1 text-xs text-slate-400 hover:text-slate-200 transition">
-        <i class="fa-solid fa-clock-rotate-left text-lg"></i>
-        <span>Rappels</span>
-      </button>
-      <button data-tab="export" class="nav-tab flex flex-col items-center space-y-1 text-xs text-slate-400 hover:text-slate-200 transition">
-        <i class="fa-solid fa-file-export text-lg"></i>
-        <span>Export .ICS</span>
-      </button>
-      <button data-tab="pwa" class="nav-tab flex flex-col items-center space-y-1 text-xs text-slate-400 hover:text-slate-200 transition">
-        <i class="fa-solid fa-download text-lg"></i>
-        <span>PWA & GitHub</span>
-      </button>
-    </nav>
-  </div>
-
-  <!-- MODAL: First Setup / Identity Selection -->
-  <div id="modal-setup" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
-    <div class="bg-slate-800 border border-slate-700 rounded-3xl p-6 max-w-sm w-full shadow-2xl text-center space-y-6">
-      <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center text-white text-2xl shadow-lg">
-        <i class="fa-solid fa-users text-2xl"></i>
+  <!-- TOP HEADER -->
+  <header class="sticky top-0 z-30 bg-slate-800/80 backdrop-blur-md border-b border-slate-700/60 px-4 py-3 flex items-center justify-between shadow-lg">
+    <div class="flex items-center space-x-3">
+      <div class="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-bold shadow-inner">
+        <i data-lucide="calendar"></i>
       </div>
       <div>
-        <h2 class="text-xl font-bold text-white">Qui êtes-vous ?</h2>
-        <p class="text-xs text-slate-400 mt-1">Choisissez votre profil pour personnaliser vos rendez-vous et vos couleurs.</p>
-      </div>
-
-      <div class="grid grid-cols-2 gap-4">
-        <button id="select-user-paul" class="p-4 rounded-2xl border-2 border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 font-bold flex flex-col items-center gap-2 transition active:scale-95">
-          <div class="w-12 h-12 rounded-full bg-blue-500 text-white flex items-center justify-center text-xl shadow">P</div>
-          <span>Paul</span>
-        </button>
-        <button id="select-user-diane" class="p-4 rounded-2xl border-2 border-pink-500/50 bg-pink-500/10 hover:bg-pink-500/20 text-pink-400 font-bold flex flex-col items-center gap-2 transition active:scale-95">
-          <div class="w-12 h-12 rounded-full bg-pink-500 text-white flex items-center justify-center text-xl shadow">D</div>
-          <span>Diane</span>
-        </button>
+        <h1 class="text-lg font-bold text-white leading-tight">Notre Agenda</h1>
+        <p id="header-user-status" class="text-xs text-slate-400 flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>Chargement...</span>
+        </p>
       </div>
     </div>
-  </div>
-
-  <!-- MODAL: Profile Settings / Colors -->
-  <div id="modal-profile" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
-    <div class="bg-slate-800 border border-slate-700 rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-5">
-      <div class="flex items-center justify-between border-b border-slate-700 pb-3">
-        <h3 class="font-bold text-lg text-white flex items-center gap-2">
-          <i class="fa-solid fa-palette text-indigo-400"></i> Profil &amp; Couleurs
-        </h3>
-        <button class="btn-close-modal text-slate-400 hover:text-white p-1">
-          <i class="fa-solid fa-xmark text-lg"></i>
-        </button>
-      </div>
-
-      <div class="space-y-4">
-        <div>
-          <label class="block text-xs font-semibold text-slate-400 mb-1">Changer d'utilisateur</label>
-          <div class="grid grid-cols-2 gap-2">
-            <button id="switch-to-paul" class="py-2 rounded-xl text-xs font-bold border border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition">
-              Connexion Paul
-            </button>
-            <button id="switch-to-diane" class="py-2 rounded-xl text-xs font-bold border border-pink-500/30 bg-pink-500/10 text-pink-400 hover:bg-pink-500/20 transition">
-              Connexion Diane
-            </button>
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-400 mb-1">Couleur de Paul</label>
-          <div class="flex items-center gap-3">
-            <input type="color" id="color-picker-paul" class="w-10 h-10 rounded-xl bg-transparent cursor-pointer border-none">
-            <span class="text-xs text-slate-300 font-mono" id="color-hex-paul">#3b82f6</span>
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-400 mb-1">Couleur de Diane</label>
-          <div class="flex items-center gap-3">
-            <input type="color" id="color-picker-diane" class="w-10 h-10 rounded-xl bg-transparent cursor-pointer border-none">
-            <span class="text-xs text-slate-300 font-mono" id="color-hex-diane">#ec4899</span>
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-400 mb-1">Couleur des Événements Communs</label>
-          <div class="flex items-center gap-3">
-            <input type="color" id="color-picker-shared" class="w-10 h-10 rounded-xl bg-transparent cursor-pointer border-none">
-            <span class="text-xs text-slate-300 font-mono" id="color-hex-shared">#8b5cf6</span>
-          </div>
-        </div>
-      </div>
-
-      <button id="btn-save-colors" class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-white text-sm transition shadow-lg">
-        Enregistrer les préférences
+    
+    <div class="flex items-center space-x-2">
+      <button id="btn-notifications" class="p-2.5 rounded-xl bg-slate-700/50 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-600/40 relative">
+        <i data-lucide="bell" class="w-5 h-5"></i>
+        <span id="notif-badge" class="hidden absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full"></span>
+      </button>
+      <button id="btn-settings" class="p-2.5 rounded-xl bg-slate-700/50 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-600/40">
+        <i data-lucide="settings" class="w-5 h-5"></i>
       </button>
     </div>
-  </div>
+  </header>
 
-  <!-- MODAL: Firebase Cloud Configuration -->
-  <div id="modal-firebase" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
-    <div class="bg-slate-800 border border-slate-700 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-      <div class="flex items-center justify-between border-b border-slate-700 pb-3">
-        <h3 class="font-bold text-lg text-white flex items-center gap-2">
-          <i class="fa-solid fa-cloud text-indigo-400"></i> Synchro Firebase (Temps Réel)
-        </h3>
-        <button class="btn-close-modal text-slate-400 hover:text-white p-1">
-          <i class="fa-solid fa-xmark text-lg"></i>
-        </button>
-      </div>
+  <!-- MAIN CONTAINER -->
+  <main class="flex-1 max-w-xl w-full mx-auto p-4 flex flex-col gap-4">
 
-      <p class="text-xs text-slate-300 leading-relaxed">
-        Pour synchroniser en direct entre les téléphones de Paul et Diane, collez la configuration de votre projet Firebase gratuit (Firestore).
-      </p>
-
-      <div class="space-y-2">
-        <label class="block text-xs font-semibold text-slate-400">Coller l'objet firebaseConfig ou les clés JSON :</label>
-        <textarea id="firebase-config-input" rows="5" placeholder='{
-  "apiKey": "AIzaSy...",
-  "authDomain": "monapp.firebaseapp.com",
-  "projectId": "monapp",
-  "storageBucket": "monapp.appspot.com",
-  "messagingSenderId": "123456789",
-  "appId": "1:123456789:web:..."
-}' class="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-xs font-mono text-slate-200 focus:outline-none focus:border-indigo-500"></textarea>
-      </div>
-
-      <div class="flex gap-2">
-        <button id="btn-save-firebase" class="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-white text-xs transition shadow-lg">
-          Connecter Firebase
-        </button>
-        <button id="btn-use-local" class="py-2.5 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 font-medium text-slate-200 text-xs transition">
-          Mode Hors-ligne
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: Add / Edit Event -->
-  <div id="modal-event" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
-    <form id="form-event" class="bg-slate-800 border border-slate-700 rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4">
-      <div class="flex items-center justify-between border-b border-slate-700 pb-3">
-        <h3 id="modal-event-title" class="font-bold text-lg text-white">Nouveau Rendez-vous</h3>
-        <button type="button" class="btn-close-modal text-slate-400 hover:text-white p-1">
-          <i class="fa-solid fa-xmark text-lg"></i>
-        </button>
-      </div>
-
-      <input type="hidden" id="event-id">
-
-      <div class="space-y-3">
-        <div>
-          <label class="block text-xs font-semibold text-slate-400 mb-1">Titre de l'événement *</label>
-          <input type="text" id="event-title-input" required placeholder="Ex: Restaurant en amoureux" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-indigo-500">
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-400 mb-1">Appartient à *</label>
-          <select id="event-owner-input" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-indigo-500">
-            <option value="paul">Paul seulement</option>
-            <option value="diane">Diane seulement</option>
-            <option value="shared">Événement Commun (Paul &amp; Diane)</option>
-          </select>
-        </div>
-
-        <div class="flex items-center space-x-2 py-1">
-          <input type="checkbox" id="event-allday-input" class="w-4 h-4 rounded text-indigo-600 bg-slate-900 border-slate-700 focus:ring-0">
-          <label for="event-allday-input" class="text-xs text-slate-300 font-medium">Toute la journée</label>
-        </div>
-
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="block text-xs font-semibold text-slate-400 mb-1">Début *</label>
-            <input type="datetime-local" id="event-start-input" required class="w-full px-2.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-indigo-500">
+    <!-- USER IDENTIFICATION & COLOR SELECTOR MODAL (First Time Launch) -->
+    <div id="modal-welcome" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 hidden">
+      <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-6">
+        <div class="text-center space-y-2">
+          <div class="w-16 h-16 bg-indigo-600/20 text-indigo-400 rounded-2xl mx-auto flex items-center justify-center text-2xl border border-indigo-500/30">
+            <i data-lucide="users"></i>
           </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-400 mb-1">Fin *</label>
-            <input type="datetime-local" id="event-end-input" required class="w-full px-2.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-indigo-500">
+          <h2 class="text-2xl font-bold text-white">Bienvenue !</h2>
+          <p class="text-sm text-slate-400">Qui utilise cet appareil ? Choisissez votre profil pour personnaliser vos couleurs.</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <button type="button" onclick="selectUser('paul')" id="select-paul" class="p-4 rounded-xl border-2 border-slate-700 bg-slate-800 hover:border-blue-500 transition-all text-center flex flex-col items-center gap-2">
+            <div class="w-12 h-12 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-lg">P</div>
+            <span class="font-semibold text-white">Paul</span>
+          </button>
+          <button type="button" onclick="selectUser('diane')" id="select-diane" class="p-4 rounded-xl border-2 border-slate-700 bg-slate-800 hover:border-pink-500 transition-all text-center flex flex-col items-center gap-2">
+            <div class="w-12 h-12 rounded-full bg-pink-500/20 text-pink-400 flex items-center justify-center font-bold text-lg">D</div>
+            <span class="font-semibold text-white">Diane</span>
+          </button>
+        </div>
+
+        <div id="color-picker-section" class="space-y-4 pt-4 border-t border-slate-700/60 hidden">
+          <h3 class="text-sm font-semibold text-slate-300">Choix de la couleur :</h3>
+          <div class="grid grid-cols-5 gap-3" id="color-palette">
+            <!-- Dynamic Color Palette -->
           </div>
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-400 mb-1">Lieu / Notes (optionnel)</label>
-          <textarea id="event-notes-input" rows="2" placeholder="Détails, adresse, rappel..." class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-indigo-500"></textarea>
-        </div>
-
-        <div class="flex items-center space-x-2 pt-1">
-          <input type="checkbox" id="event-reminder-input" checked class="w-4 h-4 rounded text-indigo-600 bg-slate-900 border-slate-700 focus:ring-0">
-          <label for="event-reminder-input" class="text-xs text-slate-300">Rappel automatique 24h avant</label>
-        </div>
-      </div>
-
-      <div class="flex gap-2 pt-2">
-        <button type="submit" class="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-white text-sm transition shadow-lg">
-          Enregistrer
-        </button>
-        <button type="button" id="btn-export-single-ics" class="hidden py-3 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition shadow-lg" title="Télécharger .ics pour Android">
-          <i class="fa-solid fa-calendar-plus"></i>
-        </button>
-        <button type="button" id="btn-delete-event" class="hidden py-3 px-4 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 font-bold text-sm transition border border-red-500/30">
-          <i class="fa-solid fa-trash"></i>
-        </button>
-      </div>
-    </form>
-  </div>
-
-  <!-- MODAL: GitHub Pages & PWA Export -->
-  <div id="modal-pwa" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
-    <div class="bg-slate-800 border border-slate-700 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-      <div class="flex items-center justify-between border-b border-slate-700 pb-3">
-        <h3 class="font-bold text-lg text-white flex items-center gap-2">
-          <i class="fa-brands fa-github text-white"></i> Hébergement GitHub Pages &amp; PWA
-        </h3>
-        <button class="btn-close-modal text-slate-400 hover:text-white p-1">
-          <i class="fa-solid fa-xmark text-lg"></i>
-        </button>
-      </div>
-
-      <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
-        <p>
-          Cette application est entièrement conçue pour être publiée gratuitement sur <strong>GitHub Pages</strong> et installable en tant que <strong>PWA sur Android &amp; iOS</strong>.
-        </p>
-        
-        <div class="bg-slate-900 p-3 rounded-xl border border-slate-700 space-y-2">
-          <p class="font-semibold text-slate-200">Pour publier sur GitHub Pages :</p>
-          <ol class="list-decimal list-inside space-y-1 text-slate-400">
-            <li>Créez un dépôt GitHub public (ex: <code class="text-indigo-400">calendrier-paul-diane</code>).</li>
-            <li>Sauvegardez ce fichier HTML sous le nom <code class="text-indigo-400">index.html</code>.</li>
-            <li>Copiez les codes ci-dessous pour créer les fichiers <code class="text-indigo-400">manifest.json</code> et <code class="text-indigo-400">sw.js</code>.</li>
-            <li>Activez GitHub Pages dans Paramètres &gt; Pages.</li>
-          </ol>
-        </div>
-
-        <div>
-          <div class="flex justify-between items-center mb-1">
-            <span class="font-semibold text-slate-200">1. manifest.json</span>
-            <button id="btn-copy-manifest" class="text-indigo-400 hover:underline text-[11px]">Copier</button>
-          </div>
-          <pre id="code-manifest" class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 font-mono text-[10px] text-slate-400 overflow-x-auto"></pre>
-        </div>
-
-        <div>
-          <div class="flex justify-between items-center mb-1">
-            <span class="font-semibold text-slate-200">2. sw.js (Service Worker)</span>
-            <button id="btn-copy-sw" class="text-indigo-400 hover:underline text-[11px]">Copier</button>
-          </div>
-          <pre id="code-sw" class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 font-mono text-[10px] text-slate-400 overflow-x-auto"></pre>
+          <button id="btn-save-profile" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 font-semibold rounded-xl text-white transition-colors shadow-lg shadow-indigo-600/30">
+            Valider et Continuer
+          </button>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- Toast Notification Container -->
-  <div id="toast-container" class="fixed top-4 right-4 left-4 md:left-auto md:w-80 z-50 pointer-events-none space-y-2"></div>
+    <!-- CALENDAR TOOLBAR & MONTH NAVIGATION -->
+    <div class="bg-slate-800/60 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between shadow-md">
+      <button id="btn-prev-month" class="p-2 hover:bg-slate-700/60 rounded-lg text-slate-300 transition-colors">
+        <i data-lucide="chevron-left" class="w-5 h-5"></i>
+      </button>
+      <div class="text-center">
+        <h2 id="current-month-year" class="text-lg font-bold text-white capitalize">Octobre 2026</h2>
+        <p class="text-xs text-indigo-400 font-medium cursor-pointer" onclick="goToToday()">Aujourd'hui</p>
+      </div>
+      <button id="btn-next-month" class="p-2 hover:bg-slate-700/60 rounded-lg text-slate-300 transition-colors">
+        <i data-lucide="chevron-right" class="w-5 h-5"></i>
+      </button>
+    </div>
 
-  <!-- Application Logic JS -->
-  <script>
-    // Global Application State
-    const AppState = {
-      currentUser: localStorage.getItem('cpd_user') || null, // 'paul' or 'diane'
-      view: 'month', // 'month', 'week', 'agenda'
-      filterOwner: 'all', // 'all', 'paul', 'diane', 'shared'
-      currentDate: new Date(),
-      events: [],
-      colors: JSON.parse(localStorage.getItem('cpd_colors')) || {
-        paul: '#3b82f6',
-        diane: '#ec4899',
-        shared: '#8b5cf6'
-      },
-      firebaseConfig: JSON.parse(localStorage.getItem('cpd_firebase_config')) || null,
-      db: null,
-      auth: null,
-      unsubscribeDb: null,
-      activeEditingEvent: null
-    };
+    <!-- COLOR LEGEND -->
+    <div class="flex items-center justify-center gap-4 text-xs font-medium text-slate-400 bg-slate-800/30 p-2.5 rounded-xl border border-slate-800">
+      <div class="flex items-center gap-1.5">
+        <span id="legend-paul" class="w-3 h-3 rounded-full bg-blue-500"></span>
+        <span>Paul</span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <span id="legend-diane" class="w-3 h-3 rounded-full bg-pink-500"></span>
+        <span>Diane</span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <span class="w-3 h-3 rounded-full bg-purple-500"></span>
+        <span>Commun</span>
+      </div>
+    </div>
 
-    // PWA Manifest Definition
-    const pwaManifest = {
-      name: "Calendrier Partagé Paul & Diane",
-      short_name: "Paul & Diane",
-      description: "Calendrier partagé en temps réel avec notifications",
-      start_url: "./index.html",
-      display: "standalone",
-      background_color: "#0f172a",
-      theme_color: "#0f172a",
-      icons: [
-        {
-          src: "https://cdn-icons-png.flaticon.com/512/3652/3652191.png",
-          sizes: "192x192",
-          type: "image/png"
-        },
-        {
-          src: "https://cdn-icons-png.flaticon.com/512/3652/3652191.png",
-          sizes: "512x512",
-          type: "image/png"
-        }
-      ]
-    };
+    <!-- CALENDAR GRID -->
+    <div class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-3 shadow-xl">
+      <div class="grid grid-cols-7 gap-1 text-center font-semibold text-xs text-slate-400 mb-2">
+        <div>Lun</div><div>Mar</div><div>Mer</div><div>Jeu</div><div>Ven</div><div>Sam</div><div>Dim</div>
+      </div>
+      <div id="calendar-days" class="grid grid-cols-7 gap-1.5">
+        <!-- Dynamic Calendar Grid -->
+      </div>
+    </div>
 
-    // Service Worker Script Definition
-    const swScriptCode = `
-const CACHE_NAME = 'cpd-calendar-v1';
-const ASSETS = [
-  './',
-  './index.html',
-  'https://cdn.tailwindcss.com',
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
-];
+    <!-- UPCOMING EVENTS LIST -->
+    <div class="space-y-3 pt-2">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+          <i data-lucide="list-todo" class="w-4 h-4 text-indigo-400"></i> Prochains événements
+        </h3>
+        <span id="events-count" class="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full border border-slate-700">0</span>
+      </div>
+      <div id="events-list" class="space-y-2.5">
+        <!-- Events list populated dynamically -->
+      </div>
+    </div>
 
-self.addEventListener('install', (e) => {
-  e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
-  );
-  self.skipWaiting();
-});
+  </main>
 
-self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((keys) => {
-    return Promise.all(keys.map((k) => {
-      if (k !== CACHE_NAME) return caches.delete(k);
-    }));
-  }));
-  self.clients.claim();
-});
+  <!-- ADD / EDIT EVENT MODAL -->
+  <div id="modal-event" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+    <div class="bg-slate-800 border-t sm:border border-slate-700 rounded-t-3xl sm:rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4 animate-in slide-in-from-bottom duration-200">
+      <div class="flex items-center justify-between">
+        <h3 id="modal-event-title" class="text-lg font-bold text-white">Nouvel Événement</h3>
+        <button onclick="closeEventModal()" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
 
-self.addEventListener('fetch', (e) => {
-  e.respondWith(
-    caches.match(e.request).then((res) => res || fetch(e.request))
-  );
-});
-`;
-
-    // Initialize App on DOM Ready
-    document.addEventListener('DOMContentLoaded', () => {
-      initUserIdentity();
-      applyColors();
-      setupEventListeners();
-      setupPWA();
-      initFirebaseOrLocal();
-      renderCurrentView();
-      start24hReminderChecker();
-    });
-
-    // Handle Identity / User Setup
-    function initUserIdentity() {
-      if (!AppState.currentUser) {
-        document.getElementById('modal-setup').classList.remove('hidden');
-      } else {
-        updateUserUI();
-      }
-    }
-
-    function updateUserUI() {
-      const name = AppState.currentUser === 'paul' ? 'Paul' : 'Diane';
-      document.getElementById('user-display-name').textContent = `Connecté en tant que ${name}`;
-      
-      const dot = document.getElementById('status-dot');
-      dot.style.backgroundColor = AppState.colors[AppState.currentUser];
-    }
-
-    // Apply Dynamic Colors (CSS & DOM)
-    function applyColors() {
-      const { paul, diane, shared } = AppState.colors;
-      
-      document.getElementById('legend-paul-color').style.backgroundColor = paul;
-      document.getElementById('legend-diane-color').style.backgroundColor = diane;
-      document.getElementById('legend-shared-color').style.backgroundColor = shared;
-
-      document.getElementById('color-picker-paul').value = paul;
-      document.getElementById('color-picker-diane').value = diane;
-      document.getElementById('color-picker-shared').value = shared;
-
-      document.getElementById('color-hex-paul').textContent = paul;
-      document.getElementById('color-hex-diane').textContent = diane;
-      document.getElementById('color-hex-shared').textContent = shared;
-
-      if (AppState.currentUser) updateUserUI();
-    }
-
-    // Event Listeners Registration
-    function setupEventListeners() {
-      // Setup Modal Selection
-      document.getElementById('select-user-paul').addEventListener('click', () => setIdentity('paul'));
-      document.getElementById('select-user-diane').addEventListener('click', () => setIdentity('diane'));
-
-      // Navigation Header
-      document.getElementById('btn-profile').addEventListener('click', () => {
-        document.getElementById('modal-profile').classList.remove('hidden');
-      });
-      document.getElementById('btn-sync-settings').addEventListener('click', () => {
-        document.getElementById('modal-firebase').classList.remove('hidden');
-      });
-      document.getElementById('btn-notifications').addEventListener('click', requestNotificationPermission);
-
-      // Close Modals
-      document.querySelectorAll('.btn-close-modal').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.target.closest('.fixed').classList.add('hidden');
-        });
-      });
-
-      // User switching inside profile
-      document.getElementById('switch-to-paul').addEventListener('click', () => { setIdentity('paul'); document.getElementById('modal-profile').classList.add('hidden'); });
-      document.getElementById('switch-to-diane').addEventListener('click', () => { setIdentity('diane'); document.getElementById('modal-profile').classList.add('hidden'); });
-
-      // Save Colors
-      document.getElementById('btn-save-colors').addEventListener('click', () => {
-        AppState.colors.paul = document.getElementById('color-picker-paul').value;
-        AppState.colors.diane = document.getElementById('color-picker-diane').value;
-        AppState.colors.shared = document.getElementById('color-picker-shared').value;
-
-        localStorage.setItem('cpd_colors', JSON.stringify(AppState.colors));
-        applyColors();
-        renderCurrentView();
-        document.getElementById('modal-profile').classList.add('hidden');
-        showToast('Couleurs enregistrées !');
-      });
-
-      // Firebase Config Save
-      document.getElementById('btn-save-firebase').addEventListener('click', () => {
-        const raw = document.getElementById('firebase-config-input').value.trim();
-        try {
-          const parsed = JSON.parse(raw);
-          AppState.firebaseConfig = parsed;
-          localStorage.setItem('cpd_firebase_config', JSON.stringify(parsed));
-          document.getElementById('modal-firebase').classList.add('hidden');
-          initFirebaseOrLocal();
-          showToast('Firebase configuré ! Synchronisation active.');
-        } catch (err) {
-          alert("Configuration JSON invalide. Vérifiez le format du texte collé.");
-        }
-      });
-
-      document.getElementById('btn-use-local').addEventListener('click', () => {
-        AppState.firebaseConfig = null;
-        localStorage.removeItem('cpd_firebase_config');
-        document.getElementById('modal-firebase').classList.add('hidden');
-        initFirebaseOrLocal();
-        showToast('Mode stockage local (Hors-Ligne) activé.');
-      });
-
-      // Filter Buttons
-      document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          AppState.filterOwner = e.target.getAttribute('data-filter');
-          document.querySelectorAll('.filter-btn').forEach(b => {
-            b.classList.remove('bg-indigo-600', 'text-white');
-            b.classList.add('bg-slate-800', 'text-slate-400');
-          });
-          e.target.classList.add('bg-indigo-600', 'text-white');
-          e.target.classList.remove('bg-slate-800', 'text-slate-400');
-          renderCurrentView();
-        });
-      });
-
-      // View Controls
-      document.querySelectorAll('.view-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          AppState.view = e.target.getAttribute('data-view');
-          updateViewButtonsUI();
-          renderCurrentView();
-        });
-      });
-
-      document.getElementById('btn-prev').addEventListener('click', () => navigateCalendar(-1));
-      document.getElementById('btn-next').addEventListener('click', () => navigateCalendar(1));
-      document.getElementById('btn-today').addEventListener('click', () => {
-        AppState.currentDate = new Date();
-        renderCurrentView();
-      });
-
-      // Add/Edit Event Form
-      document.getElementById('btn-add-event').addEventListener('click', () => openAddEventModal());
-      document.getElementById('form-event').addEventListener('submit', handleSaveEvent);
-      document.getElementById('btn-delete-event').addEventListener('click', handleDeleteEvent);
-      document.getElementById('btn-export-single-ics').addEventListener('click', exportSingleToICS);
-
-      // All day checkbox handler
-      document.getElementById('event-allday-input').addEventListener('change', (e) => {
-        const isAllDay = e.target.checked;
-        const startInput = document.getElementById('event-start-input');
-        const endInput = document.getElementById('event-end-input');
+      <form id="form-event" class="space-y-4">
+        <input type="hidden" id="event-id">
         
-        if (isAllDay) {
-          const startDate = new Date(startInput.value || new Date());
-          startDate.setHours(0,0,0,0);
-          const endDate = new Date(startDate);
-          endDate.setHours(23,59,0,0);
-          
-          startInput.value = formatDateForInput(startDate);
-          endInput.value = formatDateForInput(endDate);
-        }
-      });
-
-      // Bottom Tabs
-      document.querySelectorAll('.nav-tab').forEach(tab => {
-        tab.addEventListener('click', (e) => {
-          const target = e.currentTarget.getAttribute('data-tab');
-          if (target === 'calendar') {
-            AppState.view = 'month';
-            updateViewButtonsUI();
-            renderCurrentView();
-          } else if (target === 'upcoming') {
-            AppState.view = 'agenda';
-            updateViewButtonsUI();
-            renderCurrentView();
-          } else if (target === 'export') {
-            exportAllToICS();
-          } else if (target === 'pwa') {
-            document.getElementById('modal-pwa').classList.remove('hidden');
-          }
-        });
-      });
-
-      // Copy Code Snippets
-      document.getElementById('btn-copy-manifest').addEventListener('click', () => {
-        copyToClipboard(JSON.stringify(pwaManifest, null, 2));
-        showToast("manifest.json copié !");
-      });
-      document.getElementById('btn-copy-sw').addEventListener('click', () => {
-        copyToClipboard(swScriptCode.trim());
-        showToast("sw.js copié !");
-      });
-    }
-
-    function setIdentity(user) {
-      AppState.currentUser = user;
-      localStorage.setItem('cpd_user', user);
-      document.getElementById('modal-setup').classList.add('hidden');
-      updateUserUI();
-      showToast(`Bienvenue, ${user === 'paul' ? 'Paul' : 'Diane'} !`);
-    }
-
-    function updateViewButtonsUI() {
-      document.querySelectorAll('.view-btn').forEach(btn => {
-        if (btn.getAttribute('data-view') === AppState.view) {
-          btn.classList.add('bg-indigo-600', 'text-white', 'shadow');
-          btn.classList.remove('text-slate-400');
-        } else {
-          btn.classList.remove('bg-indigo-600', 'text-white', 'shadow');
-          btn.classList.add('text-slate-400');
-        }
-      });
-    }
-
-    // Calendar Navigation
-    function navigateCalendar(direction) {
-      if (AppState.view === 'month') {
-        AppState.currentDate.setMonth(AppState.currentDate.getMonth() + direction);
-      } else if (AppState.view === 'week') {
-        AppState.currentDate.setDate(AppState.currentDate.getDate() + (direction * 7));
-      } else if (AppState.view === 'agenda') {
-        AppState.currentDate.setMonth(AppState.currentDate.getMonth() + direction);
-      }
-      renderCurrentView();
-    }
-
-    // Firebase or Local Storage Initialization
-    async function initFirebaseOrLocal() {
-      if (AppState.unsubscribeDb) {
-        AppState.unsubscribeDb();
-        AppState.unsubscribeDb = null;
-      }
-
-      if (AppState.firebaseConfig && window.FirebaseSDK) {
-        try {
-          const { initializeApp, getFirestore, collection, onSnapshot, query, orderBy, getAuth, signInAnonymously } = window.FirebaseSDK;
-          
-          const app = initializeApp(AppState.firebaseConfig);
-          AppState.db = getFirestore(app);
-          AppState.auth = getAuth(app);
-
-          await signInAnonymously(AppState.auth);
-
-          const eventsCol = collection(AppState.db, "calendar_events");
-          const q = query(eventsCol, orderBy("start", "asc"));
-
-          let isInitialLoad = true;
-          AppState.unsubscribeDb = onSnapshot(q, (snapshot) => {
-            const newEvents = [];
-            snapshot.docChanges().forEach((change) => {
-              if (change.type === "added" && !isInitialLoad) {
-                const addedEvent = change.doc.data();
-                if (addedEvent.createdBy && addedEvent.createdBy !== AppState.currentUser) {
-                  const creator = addedEvent.createdBy === 'paul' ? 'Paul' : 'Diane';
-                  triggerNativeNotification(
-                    `Nouveau RDV par ${creator}`,
-                    `"${addedEvent.title}" le ${new Date(addedEvent.start).toLocaleDateString('fr-FR')}`
-                  );
-                }
-              }
-            });
-
-            snapshot.forEach((doc) => {
-              newEvents.push({ id: doc.id, ...doc.data() });
-            });
-
-            isInitialLoad = false;
-            AppState.events = newEvents;
-            renderCurrentView();
-          }, (err) => {
-            console.error("Erreur Firestore:", err);
-            fallbackToLocalStorage();
-          });
-
-        } catch (e) {
-          console.error("Firebase Auth/Init Fail:", e);
-          fallbackToLocalStorage();
-        }
-      } else {
-        fallbackToLocalStorage();
-      }
-    }
-
-    function fallbackToLocalStorage() {
-      const stored = localStorage.getItem('cpd_events');
-      if (stored) {
-        AppState.events = JSON.parse(stored);
-      } else {
-        const today = new Date();
-        const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
-        
-        AppState.events = [
-          {
-            id: 'evt-1',
-            title: 'Dîner Restaurant',
-            owner: 'shared',
-            allDay: false,
-            start: new Date(today.setHours(20, 0)).toISOString(),
-            end: new Date(today.setHours(22, 0)).toISOString(),
-            notes: 'Table réservée pour deux',
-            createdBy: 'paul',
-            reminder24hSent: false
-          },
-          {
-            id: 'evt-2',
-            title: 'Rendez-vous Médecin',
-            owner: 'paul',
-            allDay: false,
-            start: new Date(tomorrow.setHours(10, 30)).toISOString(),
-            end: new Date(tomorrow.setHours(11, 30)).toISOString(),
-            notes: 'Cabinet médical',
-            createdBy: 'paul',
-            reminder24hSent: false
-          }
-        ];
-        saveEventsLocal();
-      }
-      renderCurrentView();
-    }
-
-    function saveEventsLocal() {
-      localStorage.setItem('cpd_events', JSON.stringify(AppState.events));
-    }
-
-    // Event Saving & Deleting
-    async function handleSaveEvent(e) {
-      e.preventDefault();
-      
-      const id = document.getElementById('event-id').value || 'evt-' + Date.now();
-      const title = document.getElementById('event-title-input').value;
-      const owner = document.getElementById('event-owner-input').value;
-      const allDay = document.getElementById('event-allday-input').checked;
-      const start = new Date(document.getElementById('event-start-input').value).toISOString();
-      const end = new Date(document.getElementById('event-end-input').value).toISOString();
-      const notes = document.getElementById('event-notes-input').value;
-      const reminder = document.getElementById('event-reminder-input').checked;
-
-      const eventData = {
-        title,
-        owner,
-        allDay,
-        start,
-        end,
-        notes,
-        reminder24h: reminder,
-        createdBy: AppState.currentUser,
-        updatedAt: new Date().toISOString()
-      };
-
-      if (AppState.db && window.FirebaseSDK) {
-        const { doc, setDoc } = window.FirebaseSDK;
-        await setDoc(doc(AppState.db, "calendar_events", id), eventData, { merge: true });
-      } else {
-        const idx = AppState.events.findIndex(e => e.id === id);
-        if (idx >= 0) {
-          AppState.events[idx] = { id, ...eventData };
-        } else {
-          AppState.events.push({ id, ...eventData });
-        }
-        saveEventsLocal();
-        renderCurrentView();
-      }
-
-      document.getElementById('modal-event').classList.add('hidden');
-      showToast("Événement enregistré avec succès !");
-    }
-
-    async function handleDeleteEvent() {
-      const id = document.getElementById('event-id').value;
-      if (!id) return;
-
-      if (AppState.db && window.FirebaseSDK) {
-        const { doc, deleteDoc } = window.FirebaseSDK;
-        await deleteDoc(doc(AppState.db, "calendar_events", id));
-      } else {
-        AppState.events = AppState.events.filter(e => e.id !== id);
-        saveEventsLocal();
-        renderCurrentView();
-      }
-
-      document.getElementById('modal-event').classList.add('hidden');
-      showToast("Événement supprimé.");
-    }
-
-    // Modal Add/Edit Openers
-    function openAddEventModal(selectedDate = null) {
-      AppState.activeEditingEvent = null;
-      document.getElementById('modal-event-title').textContent = "Nouveau Rendez-vous";
-      document.getElementById('event-id').value = "";
-      document.getElementById('event-title-input').value = "";
-      document.getElementById('event-owner-input').value = AppState.currentUser || "shared";
-      document.getElementById('event-allday-input').checked = false;
-      document.getElementById('event-notes-input').value = "";
-      document.getElementById('btn-delete-event').classList.add('hidden');
-      document.getElementById('btn-export-single-ics').classList.add('hidden');
-
-      const now = selectedDate ? new Date(selectedDate) : new Date();
-      now.setMinutes(0);
-      const startStr = formatDateForInput(now);
-      now.setHours(now.getHours() + 1);
-      const endStr = formatDateForInput(now);
-
-      document.getElementById('event-start-input').value = startStr;
-      document.getElementById('event-end-input').value = endStr;
-
-      document.getElementById('modal-event').classList.remove('hidden');
-    }
-
-    function openEditEventModal(evt) {
-      AppState.activeEditingEvent = evt;
-      document.getElementById('modal-event-title').textContent = "Modifier l'événement";
-      document.getElementById('event-id').value = evt.id;
-      document.getElementById('event-title-input').value = evt.title;
-      document.getElementById('event-owner-input').value = evt.owner;
-      document.getElementById('event-allday-input').checked = !!evt.allDay;
-      document.getElementById('event-notes-input').value = evt.notes || "";
-      document.getElementById('event-start-input').value = formatDateForInput(new Date(evt.start));
-      document.getElementById('event-end-input').value = formatDateForInput(new Date(evt.end));
-      document.getElementById('btn-delete-event').classList.remove('hidden');
-      document.getElementById('btn-export-single-ics').classList.remove('hidden');
-
-      document.getElementById('modal-event').classList.remove('hidden');
-    }
-
-    function formatDateForInput(date) {
-      const pad = (n) => n.toString().padStart(2, '0');
-      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-    }
-
-    // Helper: Event Color Provider
-    function getEventColor(owner) {
-      if (owner === 'paul') return AppState.colors.paul;
-      if (owner === 'diane') return AppState.colors.diane;
-      return AppState.colors.shared;
-    }
-
-    function getFilteredEvents() {
-      if (AppState.filterOwner === 'all') return AppState.events;
-      return AppState.events.filter(e => e.owner === AppState.filterOwner);
-    }
-
-    // RENDER CONTROLLER
-    function renderCurrentView() {
-      const target = document.getElementById('calendar-render');
-      target.innerHTML = '';
-
-      updateHeaderTitle();
-
-      if (AppState.view === 'month') {
-        renderMonthView(target);
-      } else if (AppState.view === 'week') {
-        renderWeekView(target);
-      } else if (AppState.view === 'agenda') {
-        renderAgendaView(target);
-      }
-    }
-
-    function updateHeaderTitle() {
-      const options = { month: 'long', year: 'numeric' };
-      const titleStr = AppState.currentDate.toLocaleDateString('fr-FR', options);
-      document.getElementById('calendar-title').textContent = titleStr;
-    }
-
-    // VIEW 1: MONTH VIEW
-    function renderMonthView(container) {
-      const year = AppState.currentDate.getFullYear();
-      const month = AppState.currentDate.getMonth();
-
-      const firstDay = new Date(year, month, 1);
-      const lastDay = new Date(year, month + 1, 0);
-
-      let startingDay = firstDay.getDay() - 1;
-      if (startingDay === -1) startingDay = 6;
-
-      const totalDays = lastDay.getDate();
-
-      const grid = document.createElement('div');
-      grid.className = "grid grid-cols-7 gap-1 flex-1 h-full auto-rows-fr";
-
-      const daysOfWeek = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-      daysOfWeek.forEach(day => {
-        const header = document.createElement('div');
-        header.className = "text-center text-[10px] font-bold text-slate-400 py-1 uppercase tracking-wider";
-        header.textContent = day;
-        grid.appendChild(header);
-      });
-
-      for (let i = 0; i < startingDay; i++) {
-        const emptyCell = document.createElement('div');
-        emptyCell.className = "bg-slate-950/20 rounded-xl border border-slate-800/40 opacity-30";
-        grid.appendChild(emptyCell);
-      }
-
-      const today = new Date();
-      const activeEvents = getFilteredEvents();
-
-      for (let d = 1; d <= totalDays; d++) {
-        const cellDate = new Date(year, month, d);
-        const cell = document.createElement('div');
-        
-        const isToday = cellDate.toDateString() === today.toDateString();
-        cell.className = `p-1 rounded-xl border border-slate-800/60 flex flex-col justify-start overflow-hidden min-h-[60px] cursor-pointer transition hover:border-slate-600 ${isToday ? 'bg-indigo-950/30 border-indigo-500/50' : 'bg-slate-800/30'}`;
-
-        cell.innerHTML = `
-          <div class="text-[11px] font-bold px-1 py-0.5 rounded-full w-max ${isToday ? 'bg-indigo-600 text-white' : 'text-slate-300'}">
-            ${d}
-          </div>
-          <div class="space-y-1 mt-1 overflow-y-auto max-h-20 flex-1"></div>
-        `;
-
-        cell.addEventListener('click', (e) => {
-          if (!e.target.closest('.event-pill')) {
-            openAddEventModal(cellDate);
-          }
-        });
-
-        const dayEvents = activeEvents.filter(evt => {
-          const evtDate = new Date(evt.start);
-          return evtDate.getFullYear() === year && evtDate.getMonth() === month && evtDate.getDate() === d;
-        });
-
-        const eventsContainer = cell.querySelector('.space-y-1');
-        dayEvents.forEach(evt => {
-          const pill = document.createElement('div');
-          const color = getEventColor(evt.owner);
-          pill.className = "event-pill text-[10px] px-1.5 py-0.5 rounded-md truncate font-medium text-white shadow-sm flex items-center justify-between";
-          pill.style.backgroundColor = color;
-          
-          pill.innerHTML = `<span class="truncate">${evt.title}</span>`;
-
-          pill.addEventListener('click', (e) => {
-            e.stopPropagation();
-            openEditEventModal(evt);
-          });
-
-          eventsContainer.appendChild(pill);
-        });
-
-        grid.appendChild(cell);
-      }
-
-      container.appendChild(grid);
-    }
-
-    // VIEW 2: WEEK VIEW
-    function renderWeekView(container) {
-      const curr = new Date(AppState.currentDate);
-      const firstDayOfWeek = new Date(curr.setDate(curr.getDate() - curr.getDay() + (curr.getDay() === 0 ? -6 : 1)));
-
-      const wrapper = document.createElement('div');
-      wrapper.className = "space-y-3 overflow-y-auto h-full pr-1";
-
-      const activeEvents = getFilteredEvents();
-
-      for (let i = 0; i < 7; i++) {
-        const dayDate = new Date(firstDayOfWeek);
-        dayDate.setDate(firstDayOfWeek.getDate() + i);
-
-        const isToday = dayDate.toDateString() === new Date().toDateString();
-
-        const dayCard = document.createElement('div');
-        dayCard.className = `p-3 rounded-2xl border ${isToday ? 'bg-indigo-950/20 border-indigo-500/50' : 'bg-slate-800/40 border-slate-800'}`;
-
-        const dayName = dayDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' });
-
-        dayCard.innerHTML = `
-          <div class="flex items-center justify-between border-b border-slate-700/50 pb-2 mb-2">
-            <span class="font-bold text-xs capitalize ${isToday ? 'text-indigo-400' : 'text-slate-300'}">${dayName}</span>
-            <button class="add-day-btn text-xs text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1">
-              <i class="fa-solid fa-plus text-[10px]"></i> Ajouter
-            </button>
-          </div>
-          <div class="events-list space-y-2"></div>
-        `;
-
-        dayCard.querySelector('.add-day-btn').addEventListener('click', () => openAddEventModal(dayDate));
-
-        const eventsList = dayCard.querySelector('.events-list');
-
-        const dayEvents = activeEvents.filter(evt => {
-          const evtDate = new Date(evt.start);
-          return evtDate.toDateString() === dayDate.toDateString();
-        });
-
-        if (dayEvents.length === 0) {
-          eventsList.innerHTML = `<p class="text-[11px] text-slate-500 italic">Aucun événement</p>`;
-        } else {
-          dayEvents.forEach(evt => {
-            const item = document.createElement('div');
-            const color = getEventColor(evt.owner);
-            const timeStr = evt.allDay ? 'Toute la journée' : `${new Date(evt.start).toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}`;
-
-            item.className = "p-2 rounded-xl text-xs flex items-center justify-between text-white shadow cursor-pointer hover:opacity-90 transition";
-            item.style.backgroundColor = color;
-
-            item.innerHTML = `
-              <div class="flex items-center space-x-2 truncate">
-                <span class="bg-black/20 px-1.5 py-0.5 rounded text-[10px] font-mono">${timeStr}</span>
-                <span class="font-semibold truncate">${evt.title}</span>
-              </div>
-              <i class="fa-solid fa-pen text-[10px] opacity-70"></i>
-            `;
-
-            item.addEventListener('click', () => openEditEventModal(evt));
-            eventsList.appendChild(item);
-          });
-        }
-
-        wrapper.appendChild(dayCard);
-      }
-
-      container.appendChild(wrapper);
-    }
-
-    // VIEW 3: AGENDA VIEW
-    function renderAgendaView(container) {
-      const wrapper = document.createElement('div');
-      wrapper.className = "space-y-3 overflow-y-auto h-full pr-1";
-
-      const activeEvents = getFilteredEvents();
-      const sortedEvents = [...activeEvents].sort((a, b) => new Date(a.start) - new Date(b.start));
-
-      if (sortedEvents.length === 0) {
-        wrapper.innerHTML = `
-          <div class="text-center py-12 text-slate-500 space-y-2">
-            <i class="fa-solid fa-calendar-xmark text-3xl"></i>
-            <p class="text-xs">Aucun rendez-vous trouvé.</p>
-          </div>
-        `;
-      } else {
-        sortedEvents.forEach(evt => {
-          const startDate = new Date(evt.start);
-          const color = getEventColor(evt.owner);
-          
-          const card = document.createElement('div');
-          card.className = "bg-slate-800/60 border border-slate-700/60 rounded-2xl p-3 flex items-center justify-between space-x-3 cursor-pointer hover:border-slate-500 transition";
-
-          const ownerName = evt.owner === 'paul' ? 'Paul' : evt.owner === 'diane' ? 'Diane' : 'Commun';
-          const timeDisplay = evt.allDay ? 'Toute la journée' : `à ${startDate.toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}`;
-
-          card.innerHTML = `
-            <div class="flex items-center space-x-3 truncate">
-              <div class="w-2.5 h-10 rounded-full flex-shrink-0" style="background-color: ${color}"></div>
-              <div class="truncate">
-                <h4 class="font-bold text-sm text-slate-100 truncate">${evt.title}</h4>
-                <p class="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
-                  <span><i class="fa-regular fa-clock"></i> ${startDate.toLocaleDateString('fr-FR')} ${timeDisplay}</span>
-                  <span class="px-1.5 py-0.2 rounded bg-slate-700 text-[10px] text-slate-300 font-medium">${ownerName}</span>
-                </p>
-                ${evt.notes ? `<p class="text-[10px] text-slate-400 truncate mt-1 italic">${evt.notes}</p>` : ''}
-              </div>
-            </div>
-            <i class="fa-solid fa-chevron-right text-slate-500 text-xs"></i>
-          `;
-
-          card.addEventListener('click', () => openEditEventModal(evt));
-          wrapper.appendChild(card);
-        });
-      }
-
-      container.appendChild(wrapper);
-    }
-
-    // 24H REMINDER CHECKER & NATIVE NOTIFICATIONS
-    function requestNotificationPermission() {
-      if ('Notification' in window) {
-        Notification.requestPermission().then(permission => {
-          if (permission === 'granted') {
-            showToast("Notifications activées avec succès !");
-            triggerNativeNotification("Notifications Activées", "Vous recevrez des rappels 24h avant vos rendez-vous.");
-          } else {
-            alert("Les notifications ont été refusées dans votre navigateur.");
-          }
-        });
-      } else {
-        alert("Votre navigateur ne supporte pas la Web Notification API.");
-      }
-    }
-
-    function triggerNativeNotification(title, body) {
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification(title, {
-          body: body,
-          icon: 'https://cdn-icons-png.flaticon.com/512/3652/3652191.png'
-        });
-      }
-    }
-
-    function start24hReminderChecker() {
-      setInterval(() => {
-        const now = new Date();
-        const in24h = new Date(now.getTime() + (24 * 60 * 60 * 1000));
-
-        AppState.events.forEach(evt => {
-          if (!evt.reminder24h || evt.reminder24hSent) return;
-
-          const evtStart = new Date(evt.start);
-          
-          if (evtStart > now && evtStart <= in24h) {
-            triggerNativeNotification(
-              `Rappel 24h : ${evt.title}`,
-              `Rendez-vous prévu le ${evtStart.toLocaleDateString('fr-FR')} à ${evtStart.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'})}`
-            );
-
-            evt.reminder24hSent = true;
-            if (!AppState.db) saveEventsLocal();
-          }
-        });
-      }, 60000);
-    }
-
-    // EXPORT TO .ICS (NATIVE ANDROID / IOS CALENDAR INTEGRATION)
-    function exportSingleToICS() {
-      if (!AppState.activeEditingEvent) return;
-      downloadICSFile([AppState.activeEditingEvent], `rdv_${AppState.activeEditingEvent.title.toLowerCase().replace(/\s+/g, '_')}.ics`);
-    }
-
-    function exportAllToICS() {
-      if (AppState.events.length === 0) {
-        alert("Aucun événement à exporter.");
-        return;
-      }
-      downloadICSFile(AppState.events, 'calendrier_paul_diane.ics');
-    }
-
-    function downloadICSFile(eventsList, filename) {
-      let icsContent = [
-        "BEGIN:VCALENDAR",
-        "VERSION:2.0",
-        "PRODID:-//Paul Diane Shared Calendar//NONSGML v1.0//EN",
-        "CALSCALE:GREGORIAN"
-      ];
-
-      eventsList.forEach(evt => {
-        const start = formatDateToICS(new Date(evt.start));
-        const end = formatDateToICS(new Date(evt.end));
-
-        icsContent.push("BEGIN:VEVENT");
-        icsContent.push(`UID:${evt.id}@pauldiane.app`);
-        icsContent.push(`DTSTAMP:${formatDateToICS(new Date())}`);
-        icsContent.push(`DTSTART:${start}`);
-        icsContent.push(`DTEND:${end}`);
-        icsContent.push(`SUMMARY:${evt.title}`);
-        if (evt.notes) icsContent.push(`DESCRIPTION:${evt.notes}`);
-        icsContent.push("END:VEVENT");
-      });
-
-      icsContent.push("END:VCALENDAR");
-
-      const blob = new Blob([icsContent.join("\r\n")], { type: "text/calendar;charset=utf-8" });
-      const link = document.createElement('a');
-      link.href = window.URL.createObjectURL(blob);
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      showToast("Fichier .ics téléchargé ! Ouvrez-le pour l'importer dans Android.");
-    }
-
-    function formatDateToICS(date) {
-      return date.toISOString().replace(/-|:|\.\d+/g, "");
-    }
-
-    // PWA & SERVICE WORKER SETUP
-    function setupPWA() {
-      const manifestBlob = new Blob([JSON.stringify(pwaManifest)], { type: 'application/json' });
-      const manifestURL = URL.createObjectURL(manifestBlob);
-      const manifestLink = document.createElement('link');
-      manifestLink.rel = 'manifest';
-      manifestLink.href = manifestURL;
-      document.head.appendChild(manifestLink);
-
-      document.getElementById('code-manifest').textContent = JSON.stringify(pwaManifest, null, 2);
-      document.getElementById('code-sw').textContent = swScriptCode.trim();
-
-      if ('serviceWorker' in navigator) {
-        const swBlob = new Blob([swScriptCode], { type: 'application/javascript' });
-        const swURL = URL.createObjectURL(swBlob);
-        navigator.serviceWorker.register(swURL).catch(err => console.log('SW reg fail:', err));
-      }
-    }
-
-    // UTILITIES
-    function showToast(msg) {
-      const container = document.getElementById('toast-container');
-      const toast = document.createElement('div');
-      toast.className = "bg-slate-800 border border-slate-700 text-white text-xs font-medium px-4 py-3 rounded-2xl shadow-2xl flex items-center justify-between animate-bounce pointer-events-auto";
-      toast.innerHTML = `
-        <span class="flex items-center gap-2"><i class="fa-solid fa-circle-check text-emerald-400"></i> ${msg}</span>
-      `;
-      container.appendChild(toast);
-
-      setTimeout(() => {
-        toast.remove();
-      }, 3500);
-    }
-
-    function copyToClipboard(text) {
-      const dummy = document.createElement('textarea');
-      document.body.appendChild(dummy);
-      dummy.value = text;
-      dummy.select();
-      document.execCommand('copy');
-      document.body.removeChild(dummy);
-    }
-  </script>
-</body>
-</html>
+        <div>
+          <label class="block text-xs font-semibold text-slate-400 mb-1">Titre de l'événement</label>
+          <input type="text" id="event-title" required placeholder="Ex: Restaurant, Médecin..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus
