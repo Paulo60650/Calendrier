@@ -668,7 +668,12 @@ self.addEventListener('fetch', (e) => {
           AppState.db = getFirestore(app);
           AppState.auth = getAuth(app);
 
-          await signInAnonymously(AppState.auth);
+          // Tenter la connexion anonyme si activée sur Firebase, sinon continuer sans bloquer
+          try {
+            await signInAnonymously(AppState.auth);
+          } catch (authErr) {
+            console.warn("Auth anonyme non configurée ou ignorée:", authErr.message);
+          }
 
           const eventsCol = collection(AppState.db, "calendar_events");
           const q = query(eventsCol, orderBy("start", "asc"));
